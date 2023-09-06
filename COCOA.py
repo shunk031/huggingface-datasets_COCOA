@@ -49,7 +49,9 @@ _CITATION = """\
 """
 
 _DESCRIPTION = """\
-COCO-A dataset targets amodal segmentation, which aims to recognize and segment objects beyond their visible parts. This dataset includes labels not only for the visible parts of objects, but also for their occluded parts hidden by other objects. This enables learning to understand the full shape and position of objects. 
+COCO-A dataset targets amodal segmentation, which aims to recognize and segment objects beyond their visible parts. \
+This dataset includes labels not only for the visible parts of objects, but also for their occluded parts hidden \
+by other objects. This enables learning to understand the full shape and position of objects. 
 """
 
 _HOMEPAGE = "https://github.com/Wakeupbuddy/amodalAPI"
@@ -378,7 +380,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         )
         return [
             ds.SplitGenerator(
-                name=ds.Split.TRAIN,
+                name=ds.Split.TRAIN,  # type: ignore
                 gen_kwargs={
                     "base_image_dir": image_dirs["train"],
                     "amodal_annotation_path": tng_ann_path,
@@ -386,7 +388,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 },
             ),
             ds.SplitGenerator(
-                name=ds.Split.VALIDATION,
+                name=ds.Split.VALIDATION,  # type: ignore
                 gen_kwargs={
                     "base_image_dir": image_dirs["validation"],
                     "amodal_annotation_path": val_ann_path,
@@ -394,7 +396,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 },
             ),
             ds.SplitGenerator(
-                name=ds.Split.TEST,
+                name=ds.Split.TEST,  # type: ignore
                 gen_kwargs={
                     "base_image_dir": image_dirs["test"],
                     "amodal_annotation_path": tst_ann_path,
@@ -419,7 +421,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         image_dir = os.path.join(image_dir, "BSR", "BSDS500", "data", "images")
         return [
             ds.SplitGenerator(
-                name=ds.Split.TRAIN,
+                name=ds.Split.TRAIN,  # type: ignore
                 gen_kwargs={
                     "base_image_dir": os.path.join(image_dir, "train"),
                     "amodal_annotation_path": tng_ann_path,
@@ -427,7 +429,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 },
             ),
             ds.SplitGenerator(
-                name=ds.Split.VALIDATION,
+                name=ds.Split.VALIDATION,  # type: ignore
                 gen_kwargs={
                     "base_image_dir": os.path.join(image_dir, "val"),
                     "amodal_annotation_path": val_ann_path,
@@ -435,7 +437,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 },
             ),
             ds.SplitGenerator(
-                name=ds.Split.TEST,
+                name=ds.Split.TEST,  # type: ignore
                 gen_kwargs={
                     "base_image_dir": os.path.join(image_dir, "test"),
                     "amodal_annotation_path": tst_ann_path,

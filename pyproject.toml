@@ -17,7 +17,7 @@ mypy = "^1.5.1"
 pytest = "^7.4.1"
 
 [tool.ruff]
-line-length = 160
+line-length = 170
 
 [build-system]
 requires = ["poetry-core"]

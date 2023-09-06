@@ -5,15 +5,15 @@ license: cc-by-4.0
 
 tags:
 - computer-vision
-- object-detection
+- instance-segmentation
 - ms-coco
+- bsds
 
 datasets:
-- stuff-thing
-- stuff-only
+- COCO
+- BSDS
 
 metrics:
-- accuracy
 - iou
 ---
 
@@ -161,10 +161,6 @@ An example of looks as follows.
         "author": ["acherian", "amorgan", "dromero", "jdayal", "kjyou", "ttouneh"], 
         "url": [
             "https://s3-us-west-1.amazonaws.com/coco-ann/BSDS/BSDS_train_100075.jpg", 
-            "https://s3-us-west-1.amazonaws.com/coco-ann/BSDS/BSDS_train_100075.jpg", 
-            "https://s3-us-west-1.amazonaws.com/coco-ann/BSDS/BSDS_train_100075.jpg", 
-            "https://s3-us-west-1.amazonaws.com/coco-ann/BSDS/BSDS_train_100075.jpg", 
-            "https://s3-us-west-1.amazonaws.com/coco-ann/BSDS/BSDS_train_100075.jpg", 
             "https://s3-us-west-1.amazonaws.com/coco-ann/BSDS/BSDS_train_100075.jpg"
         ], 
         "regions": [
@@ -184,15 +180,11 @@ An example of looks as follows.
                 "order": [1, 2, 3, 4, 5, 6], 
                 "visible_mask": [
                     None, 
-                    None, 
-                    None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328AF0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328A30>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328220>
                 ], 
                 "invisible_mask": [
-                    None, 
-                    None, 
                     None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A3282E0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328400>, 
@@ -215,14 +207,12 @@ An example of looks as follows.
                 "order": [1, 2, 3, 4, 5, 6], 
                 "visible_mask": [
                     None, 
-                    None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328A00>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328D60>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A3285E0>, 
                     None
                 ], 
                 "invisible_mask": [
-                    None, 
                     None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A3286A0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328490>, 
@@ -245,13 +235,11 @@ An example of looks as follows.
                 "order": [1, 2, 3, 4, 5], 
                 "visible_mask": [
                     None, 
-                    None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328940>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD22A328880>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219830A00>
                 ], 
                 "invisible_mask": [
-                    None, 
                     None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219830CD0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219830BB0>, 
@@ -274,14 +262,12 @@ An example of looks as follows.
                 "order": [1, 2, 3, 4, 5, 6], 
                 "visible_mask": [
                     None, 
-                    None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219830A30>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219830C40>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219830B80>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2191A6820>
                 ], 
                 "invisible_mask": [
-                    None, 
                     None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2191A68B0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2191A6610>, 
@@ -304,13 +290,11 @@ An example of looks as follows.
                 "order": [1, 2, 3, 4, 5], 
                 "visible_mask": [
                     None, 
-                    None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD268700F10>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2687004F0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2687002B0>
                 ], 
                 "invisible_mask": [
-                    None, 
                     None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2191A64C0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD28805FB50>, 
@@ -332,13 +316,11 @@ An example of looks as follows.
                 "order": [1, 2, 3, 4, 5], 
                 "visible_mask": [
                     None, 
-                    None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219479DC0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219479C70>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219479A90>
                 ], 
                 "invisible_mask": [
-                    None, 
                     None, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD219479AF0>, 
                     <PIL.PngImagePlugin.PngImageFile image mode=L size=481x321 at 0x7FD2194795B0>, 
@@ -349,7 +331,6 @@ An example of looks as follows.
         "image_id": [100075, 100075, 100075, 100075, 100075, 100075], 
         "depth_constraint": [
             "1-6,2-4,2-5,2-6,3-4,3-5,3-6,4-5,4-6,5-6", 
-            "1-3,1-4,1-5,2-3,2-4,2-5,3-4,3-5,4-5", 
             "1-3,1-4,1-5,2-3,2-4,2-5,3-4,3-5,4-5", 
             "1-3,1-4,1-6,2-3,2-4,2-6,3-4,3-6,4-5,4-6", 
             "1-4,1-5,2-3,2-4,2-5,3-4,3-5,4-5", 

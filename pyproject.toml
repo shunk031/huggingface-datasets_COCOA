@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "huggingface-datasets-cocoa"
+version = "0.1.0"
+description = ""
+authors = ["Shunsuke KITADA <shunsuke.kitada.0831@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+datasets = {extras = ["vision"], version = "^2.14.4"}
+cython = "^3.0.2"
+# pycocotools = {git = "https://github.com/Wakeupbuddy/amodalAPI", subdirectory = "PythonAPI"}
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.0.287"
+black = "^23.7.0"
+mypy = "^1.5.1"
+pytest = "^7.4.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

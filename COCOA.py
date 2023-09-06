@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Type, Union
 
 import datasets as ds
 import numpy as np
@@ -263,6 +263,8 @@ def _load_images_data(
     dataset_name: Literal["COCO", "BSDS"],
     tqdm_desc: str = "Load images",
 ) -> Dict[ImageId, ImageData]:
+    ImageDataClass: Union[Type[CocoImageData], Type[BsDsImageData]]
+
     if dataset_name == "COCO":
         ImageDataClass = CocoImageData
     elif dataset_name == "BSDS":
@@ -270,11 +272,11 @@ def _load_images_data(
     else:
         raise ValueError(f"Invalid dataset name: {dataset_name}")
 
-    images = {}
+    images: Dict[ImageId, Union[CocoImageData, BsDsImageData]] = {}
     for image_dict in tqdm(image_dicts, desc=tqdm_desc):
         image_data = ImageDataClass.from_dict(image_dict)
         images[image_data.image_id] = image_data
-    return images
+    return images  # type: ignore
 
 
 def _load_cocoa_data(

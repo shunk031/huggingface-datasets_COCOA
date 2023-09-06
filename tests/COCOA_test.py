@@ -43,5 +43,3 @@ def test_load_dataset(
     assert dataset["train"].num_rows == expected_num_train  # type: ignore
     assert dataset["validation"].num_rows == expected_num_validation  # type: ignore
     assert dataset["test"].num_rows == expected_num_test  # type: ignore
-
-    breakpoint()

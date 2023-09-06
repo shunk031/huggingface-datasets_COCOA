@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import datasets as ds
+import numpy as np
+from PIL import Image
+from PIL.Image import Image as PilImage
+from pycocotools import mask as cocomask
 from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
@@ -35,6 +39,23 @@ _HOMEPAGE = "https://github.com/Wakeupbuddy/amodalAPI"
 _LICENSE = """\
 TBD
 """
+
+_URLS = {
+    "COCO": {
+        "images": {
+            "train": "http://images.cocodataset.org/zips/train2014.zip",
+            "validation": "http://images.cocodataset.org/zips/val2014.zip",
+            "test": "http://images.cocodataset.org/zips/test2014.zip",
+        },
+    },
+    "BSDS": {
+        "images": "http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/BSR/BSR_bsds500.tgz",
+    },
+}
+
+
+def _load_image(image_path: str) -> PilImage:
+    return Image.open(image_path)
 
 
 @dataclass
@@ -67,14 +88,70 @@ class ImageData(object):
 
 
 @dataclass
+class RegionAnnotationData(object):
+    segmentation: np.ndarray
+    name: str
+    area: float
+    is_stuff: bool
+    occlude_rate: float
+    order: int
+
+    @classmethod
+    def from_dict(
+        cls, json_dict: JsonDict, image_data: ImageData
+    ) -> "RegionAnnotationData":
+        segmentation = json_dict["segmentation"]
+
+        if isinstance(segmentation, list):
+            rles = cocomask.frPyObjects(
+                [segmentation], h=image_data.height, w=image_data.width
+            )
+            rle = cocomask.merge(rles)
+        else:
+            raise NotImplementedError
+
+        binary_mask = cocomask.decode(rle)
+
+        return cls(
+            segmentation=binary_mask * 255,
+            name=json_dict["name"],
+            area=json_dict["area"],
+            is_stuff=json_dict["isStuff"],
+            occlude_rate=json_dict["occlude_rate"],
+            order=json_dict["order"],
+        )
+
+
+@dataclass
 class CocoaAnnotationData(object):
     author: str
     url: str
-    regions: str
+    regions: List[RegionAnnotationData]
     image_id: ImageId
     depth_constraint: str
-    annotation_id: AnnotationId
     size: int
+
+    @classmethod
+    def from_dict(
+        cls, json_dict: JsonDict, images: Dict[ImageId, ImageData]
+    ) -> "CocoaAnnotationData":
+        image_id = json_dict["image_id"]
+
+        regions = [
+            RegionAnnotationData.from_dict(
+                json_dict=region_dict, image_data=images[image_id]
+            )
+            for region_dict in json_dict["regions"]
+        ]
+
+        return cls(
+            author=json_dict["author"],
+            url=json_dict["url"],
+            regions=regions,
+            image_id=image_id,
+            depth_constraint=json_dict["depth_constraint"],
+            size=json_dict["size"],
+        )
 
 
 def _load_images_data(
@@ -131,6 +208,9 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         )
 
     def _split_generators(self, dl_manager: ds.DownloadManager):
+        image_dirs = dl_manager.download_and_extract(_URLS[self.config.name])
+        breakpoint()
+
         assert dl_manager.manual_dir is not None, dl_manager.manual_dir
         data_path = os.path.expanduser(dl_manager.manual_dir)
 
@@ -194,10 +274,20 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             ),
         ]
 
-    def _generate_examples(self, amodal_annotation_path: str):
+    def _generate_examples(self, image_dir: str, amodal_annotation_path: str):
         ann_json = self.load_amodal_annotation(amodal_annotation_path)
 
         images = _load_images_data(image_dicts=ann_json["images"])
         annotations = _load_cocoa_data(ann_dicts=ann_json["annotations"], images=images)
 
-        breakpoint()
+        for idx, image_id in enumerate(images.keys()):
+            image_data = images[image_id]
+            image_anns = annotations[image_id]
+
+            assert len(image_anns) > 1
+
+            image = _load_image(
+                image_path=os.path.join(
+                    image_dir,
+                )
+            )

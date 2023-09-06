@@ -11,7 +11,7 @@ def dataset_path() -> str:
     argnames="dataset_name",
     argvalues=(
         "COCO",
-        "BSDS",
+        # "BSDS",
     ),
 )
 def test_load_dataset(

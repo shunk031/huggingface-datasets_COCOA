@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import datasets as ds
@@ -71,6 +71,10 @@ class ImageData(object):
 
     @classmethod
     def from_dict(cls, json_dict: JsonDict) -> "ImageData":
+        date_captured = json_dict.get("date_captured")
+        if date_captured is None:
+            date_captured = json_dict["data_captured"]  # typo?
+
         return cls(
             image_id=json_dict["id"],
             license_id=json_dict["license"],
@@ -78,8 +82,8 @@ class ImageData(object):
             coco_url=json_dict["coco_url"],
             height=json_dict["height"],
             width=json_dict["width"],
-            date_captured=json_dict["date_captured"],
             flickr_url=json_dict["flickr_url"],
+            date_captured=date_captured,
         )
 
     @property
@@ -195,10 +199,47 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
 
     @property
     def manual_download_instructions(self) -> str:
-        return "TBD"
+        return (
+            "To use COCOA, you need to download the annotations "
+            "from the google drive in the official repositories "
+            "(https://github.com/Wakeupbuddy/amodalAPI#setup)."
+            "Downloading of annotations currently appears to be restricted, "
+            "but the author will allow us to download them if we request access privileges."
+        )
 
     def _info(self) -> ds.DatasetInfo:
-        features = ds.Features()
+        features_dict = {
+            "image_id": ds.Value("int64"),
+            "license_id": ds.Value("int32"),
+            "file_name": ds.Value("string"),
+            "coco_url": ds.Value("string"),
+            "height": ds.Value("int32"),
+            "width": ds.Value("int32"),
+            "date_captured": ds.Value("string"),
+            "flickr_url": ds.Value("string"),
+            "image": ds.Image(),
+        }
+        features_dict["annotations"] = ds.Sequence(
+            {
+                "author": ds.Value("string"),
+                "url": ds.Value("string"),
+                "regions": ds.Sequence(
+                    {
+                        "segmentation": ds.Image(),
+                        "name": ds.Value("string"),
+                        "area": ds.Value("float32"),
+                        "is_stuff": ds.Value("bool"),
+                        "occlude_rate": ds.Value("float32"),
+                        "order": ds.Value("int32"),
+                    }
+                ),
+                "image_id": ds.Value("int64"),
+                "depth_constraint": ds.Value("string"),
+                "size": ds.Value("int32"),
+            }
+        )
+        features = ds.Features(features_dict)
+
         return ds.DatasetInfo(
             description=_DESCRIPTION,
             citation=_CITATION,
@@ -208,8 +249,8 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         )
 
     def _split_generators(self, dl_manager: ds.DownloadManager):
-        image_dirs = dl_manager.download_and_extract(_URLS[self.config.name])
-        breakpoint()
+        file_paths = dl_manager.download_and_extract(_URLS[self.config.name])
+        image_dirs = file_paths["images"]  # type: ignore
 
         assert dl_manager.manual_dir is not None, dl_manager.manual_dir
         data_path = os.path.expanduser(dl_manager.manual_dir)
@@ -263,18 +304,44 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         return [
             ds.SplitGenerator(
                 name=ds.Split.TRAIN,
-                gen_kwargs={"amodal_annotation_path": tng_ann_path},
+                gen_kwargs={
+                    "base_image_dir": image_dirs["train"],
+                    "amodal_annotation_path": tng_ann_path,
+                    "split": "train",
+                },
             ),
             ds.SplitGenerator(
                 name=ds.Split.VALIDATION,
-                gen_kwargs={"amodal_annotation_path": val_ann_path},
+                gen_kwargs={
+                    "base_image_dir": image_dirs["validation"],
+                    "amodal_annotation_path": val_ann_path,
+                    "split": "val",
+                },
             ),
             ds.SplitGenerator(
-                name=ds.Split.TEST, gen_kwargs={"amodal_annotation_path": tst_ann_path}
+                name=ds.Split.TEST,
+                gen_kwargs={
+                    "base_image_dir": image_dirs["test"],
+                    "amodal_annotation_path": tst_ann_path,
+                    "split": "test",
+                },
             ),
         ]
 
-    def _generate_examples(self, image_dir: str, amodal_annotation_path: str):
+    def _generate_examples(
+        self,
+        split: str,
+        base_image_dir: str,
+        amodal_annotation_path: str,
+    ):
+        if self.config.name == "COCO":
+            image_dir_name = f"{split}2014"
+        elif self.config.name == "BSDS":
+            breakpoint()
+        else:
+            raise ValueError(f"Invalid task: {self.config.name}")
+
+        image_dir = os.path.join(base_image_dir, image_dir_name)
         ann_json = self.load_amodal_annotation(amodal_annotation_path)
 
         images = _load_images_data(image_dicts=ann_json["images"])
@@ -284,10 +351,18 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             image_data = images[image_id]
             image_anns = annotations[image_id]
 
-            assert len(image_anns) > 1
+            if len(image_anns) < 1:
+                continue
 
             image = _load_image(
-                image_path=os.path.join(
-                    image_dir,
-                )
+                image_path=os.path.join(image_dir, image_data.file_name)
             )
+            example = asdict(image_data)
+            example["image"] = image
+            example["annotations"] = []
+            for ann in image_anns:
+                ann_dict = asdict(ann)
+                example["annotations"].append(ann_dict)
+
+            # breakpoint()
+            yield idx, example

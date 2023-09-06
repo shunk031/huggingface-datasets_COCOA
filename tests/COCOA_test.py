@@ -10,8 +10,8 @@ def dataset_path() -> str:
 @pytest.mark.parametrize(
     argnames="dataset_name",
     argvalues=(
-        "COCO",
-        # "BSDS",
+        # "COCO",
+        "BSDS",
     ),
 )
 def test_load_dataset(

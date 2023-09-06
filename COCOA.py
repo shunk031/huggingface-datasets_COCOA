@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import datasets as ds
 import numpy as np
@@ -28,16 +28,34 @@ _CITATION = """\
   pages={1464--1472},
   year={2017}
 }
+@inproceedings{lin2014microsoft,
+  title={Microsoft coco: Common objects in context},
+  author={Lin, Tsung-Yi and Maire, Michael and Belongie, Serge and Hays, James and Perona, Pietro and Ramanan, Deva and Doll{\'a}r, Piotr and Zitnick, C Lawrence},
+  booktitle={Computer Vision--ECCV 2014: 13th European Conference, Zurich, Switzerland, September 6-12, 2014, Proceedings, Part V 13},
+  pages={740--755},
+  year={2014},
+  organization={Springer}
+}
+@article{arbelaez2010contour,
+  title={Contour detection and hierarchical image segmentation},
+  author={Arbelaez, Pablo and Maire, Michael and Fowlkes, Charless and Malik, Jitendra},
+  journal={IEEE transactions on pattern analysis and machine intelligence},
+  volume={33},
+  number={5},
+  pages={898--916},
+  year={2010},
+  publisher={IEEE}
+}
 """
 
 _DESCRIPTION = """\
-
+COCO-A dataset targets amodal segmentation, which aims to recognize and segment objects beyond their visible parts. This dataset includes labels not only for the visible parts of objects, but also for their occluded parts hidden by other objects. This enables learning to understand the full shape and position of objects. 
 """
 
 _HOMEPAGE = "https://github.com/Wakeupbuddy/amodalAPI"
 
 _LICENSE = """\
-TBD
+The annotations in the COCO dataset along with this website belong to the COCO Consortium and are licensed under a Creative Commons Attribution 4.0 License.
 """
 
 _URLS = {
@@ -134,6 +152,48 @@ class RegionAnnotationData(object):
     is_stuff: bool
     occlude_rate: float
     order: int
+    visible_mask: Optional[np.ndarray] = None
+    invisible_mask: Optional[np.ndarray] = None
+
+    @classmethod
+    def rle_segmentation_to_binary_mask(
+        cls, segmentation, height: int, width: int
+    ) -> np.ndarray:
+        if isinstance(segmentation, list):
+            rles = cocomask.frPyObjects([segmentation], h=height, w=width)
+            rle = cocomask.merge(rles)
+        else:
+            raise NotImplementedError
+
+        return cocomask.decode(rle)
+
+    @classmethod
+    def rle_segmentation_to_mask(
+        cls, segmentation, height: int, width: int
+    ) -> np.ndarray:
+        binary_mask = cls.rle_segmentation_to_binary_mask(
+            segmentation=segmentation, height=height, width=width
+        )
+        return binary_mask * 255
+
+    @classmethod
+    def get_visible_binary_mask(cls, rle_visible_mask=None) -> Optional[np.ndarray]:
+        if rle_visible_mask is None:
+            return None
+        return cocomask.decode(rle_visible_mask)
+
+    @classmethod
+    def get_invisible_binary_mask(cls, rle_invisible_mask=None) -> Optional[np.ndarray]:
+        return cls.get_visible_binary_mask(rle_invisible_mask)
+
+    @classmethod
+    def get_visible_mask(cls, rle_visible_mask=None) -> Optional[np.ndarray]:
+        visible_mask = cls.get_visible_binary_mask(rle_visible_mask=rle_visible_mask)
+        return visible_mask * 255 if visible_mask is not None else None
+
+    @classmethod
+    def get_invisible_mask(cls, rle_invisible_mask=None) -> Optional[np.ndarray]:
+        return cls.get_visible_mask(rle_invisible_mask)
 
     @classmethod
     def from_dict(
@@ -141,18 +201,21 @@ class RegionAnnotationData(object):
     ) -> "RegionAnnotationData":
         segmentation = json_dict["segmentation"]
 
-        if isinstance(segmentation, list):
-            rles = cocomask.frPyObjects(
-                [segmentation], h=image_data.height, w=image_data.width
-            )
-            rle = cocomask.merge(rles)
-        else:
-            raise NotImplementedError
-
-        binary_mask = cocomask.decode(rle)
-
+        segmentation_mask = cls.rle_segmentation_to_mask(
+            segmentation=segmentation,
+            height=image_data.height,
+            width=image_data.width,
+        )
+        visible_mask = cls.get_visible_mask(
+            rle_visible_mask=json_dict.get("visible_mask")
+        )
+        invisible_mask = cls.get_invisible_mask(
+            rle_invisible_mask=json_dict.get("invisible_mask")
+        )
         return cls(
-            segmentation=binary_mask * 255,
+            segmentation=segmentation_mask,
+            visible_mask=visible_mask,
+            invisible_mask=invisible_mask,
             name=json_dict["name"],
             area=json_dict["area"],
             is_stuff=json_dict["isStuff"],
@@ -281,6 +344,8 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                         "is_stuff": ds.Value("bool"),
                         "occlude_rate": ds.Value("float32"),
                         "order": ds.Value("int32"),
+                        "visible_mask": ds.Image(),
+                        "invisible_mask": ds.Image(),
                     }
                 ),
                 "image_id": ds.Value("int64"),
@@ -450,5 +515,4 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 ann_dict = asdict(ann)
                 example["annotations"].append(ann_dict)
 
-            # breakpoint()
             yield idx, example

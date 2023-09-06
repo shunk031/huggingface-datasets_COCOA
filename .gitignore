@@ -2,6 +2,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
 *.tar.gz
+*.jpg
+*.png
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

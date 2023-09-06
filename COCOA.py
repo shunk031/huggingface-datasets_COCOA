@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 import datasets as ds
 import numpy as np
@@ -63,32 +63,67 @@ class ImageData(object):
     image_id: ImageId
     license_id: LicenseId
     file_name: str
-    coco_url: str
     height: int
     width: int
     date_captured: str
     flickr_url: str
 
     @classmethod
-    def from_dict(cls, json_dict: JsonDict) -> "ImageData":
+    def get_date_captured(cls, json_dict: JsonDict) -> str:
         date_captured = json_dict.get("date_captured")
         if date_captured is None:
             date_captured = json_dict["data_captured"]  # typo?
+        return date_captured
 
-        return cls(
-            image_id=json_dict["id"],
-            license_id=json_dict["license"],
-            file_name=json_dict["file_name"],
-            coco_url=json_dict["coco_url"],
-            height=json_dict["height"],
-            width=json_dict["width"],
-            flickr_url=json_dict["flickr_url"],
-            date_captured=date_captured,
-        )
+    @classmethod
+    def get_license_id(cls, json_dict: JsonDict) -> int:
+        license_id = json_dict["license"]
+        if license_id == "?":
+            # Since the test data in BSDS has a license id of `?`,
+            # convert it to -100 instead.
+            return -100
+        else:
+            return int(license_id)
+
+    @classmethod
+    def to_base_dict(cls, json_dict: JsonDict) -> JsonDict:
+        return {
+            "image_id": json_dict["id"],
+            "file_name": json_dict["file_name"],
+            "height": json_dict["height"],
+            "width": json_dict["width"],
+            "flickr_url": json_dict["flickr_url"],
+            "license_id": cls.get_license_id(json_dict),
+            "date_captured": cls.get_date_captured(json_dict),
+        }
 
     @property
     def shape(self) -> Tuple[int, int]:
         return (self.height, self.width)
+
+
+@dataclass
+class CocoImageData(ImageData):
+    coco_url: str
+
+    @classmethod
+    def from_dict(cls, json_dict: JsonDict) -> "CocoImageData":
+        return cls(
+            **cls.to_base_dict(json_dict),
+            coco_url=json_dict["coco_url"],
+        )
+
+
+@dataclass
+class BsDsImageData(ImageData):
+    bsds_url: str
+
+    @classmethod
+    def from_dict(cls, json_dict: JsonDict) -> "BsDsImageData":
+        return cls(
+            **cls.to_base_dict(json_dict),
+            bsds_url=json_dict["bsds_url"],
+        )
 
 
 @dataclass
@@ -160,11 +195,19 @@ class CocoaAnnotationData(object):
 
 def _load_images_data(
     image_dicts: List[JsonDict],
+    dataset_name: Literal["COCO", "BSDS"],
     tqdm_desc: str = "Load images",
 ) -> Dict[ImageId, ImageData]:
+    if dataset_name == "COCO":
+        ImageDataClass = CocoImageData
+    elif dataset_name == "BSDS":
+        ImageDataClass = BsDsImageData
+    else:
+        raise ValueError(f"Invalid dataset name: {dataset_name}")
+
     images = {}
     for image_dict in tqdm(image_dicts, desc=tqdm_desc):
-        image_data = ImageData.from_dict(image_dict)
+        image_data = ImageDataClass.from_dict(image_dict)
         images[image_data.image_id] = image_data
     return images
 
@@ -212,13 +255,20 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             "image_id": ds.Value("int64"),
             "license_id": ds.Value("int32"),
             "file_name": ds.Value("string"),
-            "coco_url": ds.Value("string"),
             "height": ds.Value("int32"),
             "width": ds.Value("int32"),
             "date_captured": ds.Value("string"),
             "flickr_url": ds.Value("string"),
             "image": ds.Image(),
         }
+
+        if self.config.name == "COCO":
+            features_dict["coco_url"] = ds.Value("string")
+        elif self.config.name == "BSDS":
+            features_dict["bsds_url"] = ds.Value("string")
+        else:
+            raise ValueError(f"Invalid dataset name: {self.config.name}")
+
         features_dict["annotations"] = ds.Sequence(
             {
                 "author": ds.Value("string"),
@@ -248,59 +298,19 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             features=features,
         )
 
-    def _split_generators(self, dl_manager: ds.DownloadManager):
-        file_paths = dl_manager.download_and_extract(_URLS[self.config.name])
-        image_dirs = file_paths["images"]  # type: ignore
-
-        assert dl_manager.manual_dir is not None, dl_manager.manual_dir
-        data_path = os.path.expanduser(dl_manager.manual_dir)
-
-        if not os.path.exists(data_path):
-            raise FileNotFoundError(
-                f"{data_path} does not exists. Make sure you insert a manual dir "
-                'via `datasets.load_dataset("shunk031/COCOA", data_dir=...)` '
-                "that includes tar/untar files from the COCOA annotation tar.gz. "
-                f"Manual download instructions: {self.manual_download_instructions}"
-            )
-        else:
-            data_path = (
-                dl_manager.extract(data_path)
-                if not os.path.isdir(data_path)
-                else data_path
-            )
-
-        assert isinstance(data_path, str)
-        ann_dir = os.path.join(data_path, "annotations")
-
-        if self.config.name == "COCO":
-            tng_ann_path = os.path.join(
-                ann_dir,
-                f"{self.config.name}_amodal_train2014.json",
-            )
-            val_ann_path = os.path.join(
-                ann_dir,
-                f"{self.config.name}_amodal_val2014.json",
-            )
-            tst_ann_path = os.path.join(
-                ann_dir,
-                f"{self.config.name}_amodal_test2014.json",
-            )
-        elif self.config.name == "BSDS":
-            tng_ann_path = os.path.join(
-                ann_dir,
-                f"{self.config.name}_amodal_train.json",
-            )
-            val_ann_path = os.path.join(
-                ann_dir,
-                f"{self.config.name}_amodal_val.json",
-            )
-            tst_ann_path = os.path.join(
-                ann_dir,
-                f"{self.config.name}_amodal_test.json",
-            )
-        else:
-            raise ValueError(f"Invalid name: {self.config.name}")
-
+    def _split_generators_coco(self, ann_dir: str, image_dirs: Dict[str, str]):
+        tng_ann_path = os.path.join(
+            ann_dir,
+            f"{self.config.name}_amodal_train2014.json",
+        )
+        val_ann_path = os.path.join(
+            ann_dir,
+            f"{self.config.name}_amodal_val2014.json",
+        )
+        tst_ann_path = os.path.join(
+            ann_dir,
+            f"{self.config.name}_amodal_test2014.json",
+        )
         return [
             ds.SplitGenerator(
                 name=ds.Split.TRAIN,
@@ -328,6 +338,80 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             ),
         ]
 
+    def _split_generators_bsds(self, ann_dir: str, image_dir: str):
+        tng_ann_path = os.path.join(
+            ann_dir,
+            f"{self.config.name}_amodal_train.json",
+        )
+        val_ann_path = os.path.join(
+            ann_dir,
+            f"{self.config.name}_amodal_val.json",
+        )
+        tst_ann_path = os.path.join(
+            ann_dir,
+            f"{self.config.name}_amodal_test.json",
+        )
+        image_dir = os.path.join(image_dir, "BSR", "BSDS500", "data", "images")
+        return [
+            ds.SplitGenerator(
+                name=ds.Split.TRAIN,
+                gen_kwargs={
+                    "base_image_dir": os.path.join(image_dir, "train"),
+                    "amodal_annotation_path": tng_ann_path,
+                    "split": "train",
+                },
+            ),
+            ds.SplitGenerator(
+                name=ds.Split.VALIDATION,
+                gen_kwargs={
+                    "base_image_dir": os.path.join(image_dir, "val"),
+                    "amodal_annotation_path": val_ann_path,
+                    "split": "validation",
+                },
+            ),
+            ds.SplitGenerator(
+                name=ds.Split.TEST,
+                gen_kwargs={
+                    "base_image_dir": os.path.join(image_dir, "test"),
+                    "amodal_annotation_path": tst_ann_path,
+                    "split": "test",
+                },
+            ),
+        ]
+
+    def _split_generators(self, dl_manager: ds.DownloadManager):
+        file_paths = dl_manager.download_and_extract(_URLS[self.config.name])
+        image_dirs = file_paths["images"]  # type: ignore
+
+        assert dl_manager.manual_dir is not None, dl_manager.manual_dir
+        data_path = os.path.expanduser(dl_manager.manual_dir)
+
+        if not os.path.exists(data_path):
+            raise FileNotFoundError(
+                f"{data_path} does not exists. Make sure you insert a manual dir "
+                'via `datasets.load_dataset("shunk031/COCOA", data_dir=...)` '
+                "that includes tar/untar files from the COCOA annotation tar.gz. "
+                f"Manual download instructions: {self.manual_download_instructions}"
+            )
+        else:
+            data_path = (
+                dl_manager.extract(data_path)
+                if not os.path.isdir(data_path)
+                else data_path
+            )
+
+        assert isinstance(data_path, str)
+        ann_dir = os.path.join(data_path, "annotations")
+
+        if self.config.name == "COCO":
+            return self._split_generators_coco(ann_dir=ann_dir, image_dirs=image_dirs)
+
+        elif self.config.name == "BSDS":
+            return self._split_generators_bsds(ann_dir=ann_dir, image_dir=image_dirs)
+
+        else:
+            raise ValueError(f"Invalid name: {self.config.name}")
+
     def _generate_examples(
         self,
         split: str,
@@ -335,16 +419,18 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         amodal_annotation_path: str,
     ):
         if self.config.name == "COCO":
-            image_dir_name = f"{split}2014"
+            image_dir = os.path.join(base_image_dir, f"{split}2014")
         elif self.config.name == "BSDS":
-            breakpoint()
+            image_dir = base_image_dir
         else:
             raise ValueError(f"Invalid task: {self.config.name}")
 
-        image_dir = os.path.join(base_image_dir, image_dir_name)
         ann_json = self.load_amodal_annotation(amodal_annotation_path)
 
-        images = _load_images_data(image_dicts=ann_json["images"])
+        images = _load_images_data(
+            image_dicts=ann_json["images"],
+            dataset_name=self.config.name,
+        )
         annotations = _load_cocoa_data(ann_dicts=ann_json["annotations"], images=images)
 
         for idx, image_id in enumerate(images.keys()):

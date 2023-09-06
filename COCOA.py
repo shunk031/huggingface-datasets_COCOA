@@ -49,7 +49,7 @@ _CITATION = """\
 """
 
 _DESCRIPTION = """\
-COCO-A dataset targets amodal segmentation, which aims to recognize and segment objects beyond their visible parts. \
+COCOA dataset targets amodal segmentation, which aims to recognize and segment objects beyond their visible parts. \
 This dataset includes labels not only for the visible parts of objects, but also for their occluded parts hidden \
 by other objects. This enables learning to understand the full shape and position of objects. 
 """

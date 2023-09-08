@@ -23,4 +23,5 @@ jobs:
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
         run: |
           git fetch --unshallow
+          git lfs fetch --all origin main
           git push --force https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/datasets/${HF_USERNAME}/COCOA main

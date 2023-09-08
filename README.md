@@ -21,9 +21,13 @@ metrics:
 
 [![CI](https://github.com/shunk031/huggingface-datasets_COCOA/actions/workflows/ci.yaml/badge.svg)](https://github.com/shunk031/huggingface-datasets_COCOA/actions/workflows/ci.yaml)
 <<<<<<< HEAD
+<<<<<<< HEAD
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shunk031/huggingface-datasets_COCOA/blob/main/notebooks/COCOA_demo.ipynb)
 =======
 >>>>>>> parent of e75a659 (add notebooks (#4))
+=======
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]((https://colab.research.google.com/github/shunk031/huggingface-datasets_COCOA/blob/main/notebooks/COCOA_demo.ipynb))
+>>>>>>> parent of 207dbf8 (Update readme (#5))
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)

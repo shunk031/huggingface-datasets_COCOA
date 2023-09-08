@@ -20,6 +20,7 @@ metrics:
 # Dataset Card for COCOA
 
 [![CI](https://github.com/shunk031/huggingface-datasets_COCOA/actions/workflows/ci.yaml/badge.svg)](https://github.com/shunk031/huggingface-datasets_COCOA/actions/workflows/ci.yaml)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]((https://colab.research.google.com/github/shunk031/huggingface-datasets_COCOA/blob/main/notebooks/COCOA_demo.ipynb))
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
@@ -81,7 +82,12 @@ When loading a specific configuration, users has to append a version dependent s
 ```python
 import datasets as ds
 
-dataset = ds.load_dataset("shunk031/COCOA", name="COCO", data_dir="/path/to/cocoa_annotation.tar.gz")
+dataset = ds.load_dataset(
+    path="shunk031/COCOA", 
+    name="COCO", 
+    data_dir="/path/to/cocoa_annotation.tar.gz",
+    decode_rle=True, # True if Run-length Encoding (RLE) is to be decoded and converted to binary mask.
+)
 ```
 
 #### COCO

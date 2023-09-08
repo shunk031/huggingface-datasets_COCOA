@@ -20,7 +20,7 @@ metrics:
 # Dataset Card for COCOA
 
 [![CI](https://github.com/shunk031/huggingface-datasets_COCOA/actions/workflows/ci.yaml/badge.svg)](https://github.com/shunk031/huggingface-datasets_COCOA/actions/workflows/ci.yaml)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]((https://colab.research.google.com/github/shunk031/huggingface-datasets_COCOA/blob/main/notebooks/COCOA_demo.ipynb))
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shunk031/huggingface-datasets_COCOA/blob/main/notebooks/COCOA_demo.ipynb)
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)

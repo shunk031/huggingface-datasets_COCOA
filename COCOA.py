@@ -3,13 +3,12 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Literal, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Type, TypedDict, Union
 
 import datasets as ds
 import numpy as np
 from PIL import Image
 from PIL.Image import Image as PilImage
-from pycocotools import mask as cocomask
 from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
@@ -146,21 +145,28 @@ class BsDsImageData(ImageData):
         )
 
 
+class RunLengthEncoding(TypedDict):
+    counts: str
+    size: Tuple[int, int]
+
+
 @dataclass
 class RegionAnnotationData(object):
-    segmentation: np.ndarray
+    segmentation: Union[List[float], np.ndarray]
     name: str
     area: float
     is_stuff: bool
     occlude_rate: float
     order: int
-    visible_mask: Optional[np.ndarray] = None
-    invisible_mask: Optional[np.ndarray] = None
+    visible_mask: Optional[Union[np.ndarray, RunLengthEncoding]] = None
+    invisible_mask: Optional[Union[np.ndarray, RunLengthEncoding]] = None
 
     @classmethod
     def rle_segmentation_to_binary_mask(
         cls, segmentation, height: int, width: int
     ) -> np.ndarray:
+        from pycocotools import mask as cocomask
+
         if isinstance(segmentation, list):
             rles = cocomask.frPyObjects([segmentation], h=height, w=width)
             rle = cocomask.merge(rles)
@@ -180,6 +186,8 @@ class RegionAnnotationData(object):
 
     @classmethod
     def get_visible_binary_mask(cls, rle_visible_mask=None) -> Optional[np.ndarray]:
+        from pycocotools import mask as cocomask
+
         if rle_visible_mask is None:
             return None
         return cocomask.decode(rle_visible_mask)
@@ -199,21 +207,28 @@ class RegionAnnotationData(object):
 
     @classmethod
     def from_dict(
-        cls, json_dict: JsonDict, image_data: ImageData
+        cls,
+        json_dict: JsonDict,
+        image_data: ImageData,
+        decode_rle: bool,
     ) -> "RegionAnnotationData":
-        segmentation = json_dict["segmentation"]
+        if decode_rle:
+            segmentation_mask = cls.rle_segmentation_to_mask(
+                segmentation=json_dict["segmentation"],
+                height=image_data.height,
+                width=image_data.width,
+            )
+            visible_mask = cls.get_visible_mask(
+                rle_visible_mask=json_dict.get("visible_mask")
+            )
+            invisible_mask = cls.get_invisible_mask(
+                rle_invisible_mask=json_dict.get("invisible_mask")
+            )
+        else:
+            segmentation_mask = json_dict["segmentation"]
+            visible_mask = json_dict.get("visible_mask")
+            invisible_mask = json_dict.get("invisible_mask")
 
-        segmentation_mask = cls.rle_segmentation_to_mask(
-            segmentation=segmentation,
-            height=image_data.height,
-            width=image_data.width,
-        )
-        visible_mask = cls.get_visible_mask(
-            rle_visible_mask=json_dict.get("visible_mask")
-        )
-        invisible_mask = cls.get_invisible_mask(
-            rle_invisible_mask=json_dict.get("invisible_mask")
-        )
         return cls(
             segmentation=segmentation_mask,
             visible_mask=visible_mask,
@@ -237,13 +252,15 @@ class CocoaAnnotationData(object):
 
     @classmethod
     def from_dict(
-        cls, json_dict: JsonDict, images: Dict[ImageId, ImageData]
+        cls, json_dict: JsonDict, images: Dict[ImageId, ImageData], decode_rle: bool
     ) -> "CocoaAnnotationData":
         image_id = json_dict["image_id"]
 
         regions = [
             RegionAnnotationData.from_dict(
-                json_dict=region_dict, image_data=images[image_id]
+                json_dict=region_dict,
+                image_data=images[image_id],
+                decode_rle=decode_rle,
             )
             for region_dict in json_dict["regions"]
         ]
@@ -282,23 +299,32 @@ def _load_images_data(
 def _load_cocoa_data(
     ann_dicts: List[JsonDict],
     images: Dict[ImageId, ImageData],
+    decode_rle: bool,
     tqdm_desc: str = "Load COCOA annotations",
-):
+) -> Dict[ImageId, List[CocoaAnnotationData]]:
     annotations = defaultdict(list)
     ann_dicts = sorted(ann_dicts, key=lambda d: d["image_id"])
 
     for ann_dict in tqdm(ann_dicts, desc=tqdm_desc):
-        cocoa_data = CocoaAnnotationData.from_dict(ann_dict, images=images)
+        cocoa_data = CocoaAnnotationData.from_dict(
+            ann_dict, images=images, decode_rle=decode_rle
+        )
         annotations[cocoa_data.image_id].append(cocoa_data)
 
     return annotations
 
 
+@dataclass
+class CocoaConfig(ds.BuilderConfig):
+    decode_rle: bool = False
+
+
 class CocoaDataset(ds.GeneratorBasedBuilder):
     VERSION = ds.Version("1.0.0")
+    BUILDER_CONFIG_CLASS = CocoaConfig
     BUILDER_CONFIGS = [
-        ds.BuilderConfig(name="COCO", version=VERSION),
-        ds.BuilderConfig(name="BSDS", version=VERSION),
+        CocoaConfig(name="COCO", version=VERSION, decode_rle=False),
+        CocoaConfig(name="BSDS", version=VERSION, decode_rle=False),
     ]
 
     def load_amodal_annotation(self, ann_json_path: str) -> JsonDict:
@@ -336,20 +362,35 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         else:
             raise ValueError(f"Invalid dataset name: {self.config.name}")
 
+        if self.config.decode_rle:  # type: ignore
+            segmentation_feature = ds.Image()
+            visible_mask_feature = ds.Image()
+            invisible_mask_feature = ds.Image()
+        else:
+            segmentation_feature = ds.Sequence(ds.Value("float32"))
+            visible_mask_feature = {
+                "counts": ds.Value("string"),
+                "size": ds.Sequence(ds.Value("int32")),
+            }
+            invisible_mask_feature = {
+                "counts": ds.Value("string"),
+                "size": ds.Sequence(ds.Value("int32")),
+            }
+
         features_dict["annotations"] = ds.Sequence(
             {
                 "author": ds.Value("string"),
                 "url": ds.Value("string"),
                 "regions": ds.Sequence(
                     {
-                        "segmentation": ds.Image(),
+                        "segmentation": segmentation_feature,
                         "name": ds.Value("string"),
                         "area": ds.Value("float32"),
                         "is_stuff": ds.Value("bool"),
                         "occlude_rate": ds.Value("float32"),
                         "order": ds.Value("int32"),
-                        "visible_mask": ds.Image(),
-                        "invisible_mask": ds.Image(),
+                        "visible_mask": visible_mask_feature,
+                        "invisible_mask": invisible_mask_feature,
                     }
                 ),
                 "image_id": ds.Value("int64"),
@@ -500,13 +541,18 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             image_dicts=ann_json["images"],
             dataset_name=self.config.name,
         )
-        annotations = _load_cocoa_data(ann_dicts=ann_json["annotations"], images=images)
+        annotations = _load_cocoa_data(
+            ann_dicts=ann_json["annotations"],
+            images=images,
+            decode_rle=self.config.decode_rle,  # type: ignore
+        )
 
         for idx, image_id in enumerate(images.keys()):
             image_data = images[image_id]
             image_anns = annotations[image_id]
 
             if len(image_anns) < 1:
+                # The original COCO and BSDS datasets may not have amodal annotations.
                 continue
 
             image = _load_image(

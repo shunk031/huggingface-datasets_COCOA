@@ -518,7 +518,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager: ds.DownloadManager):
         urls = _URLS[self.config.name]
-        image_dirs = dl_manager.download_and_extract(urls["images"])
+        image_dirs = dl_manager.download_and_extract(urls["images"])  # type: ignore
 
         if dl_manager.download_config.token:
             data_path = self._download_annotation_from_hf(dl_manager)

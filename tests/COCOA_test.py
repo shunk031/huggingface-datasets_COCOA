@@ -19,6 +19,13 @@ def data_dir() -> str:
 
 
 @pytest.mark.parametrize(
+    argnames="use_auth_token",
+    argvalues=(
+        True,
+        False,
+    ),
+)
+@pytest.mark.parametrize(
     argnames="decode_rle,",
     argvalues=(False, True),
 )
@@ -42,9 +49,14 @@ def test_load_dataset(
     expected_num_validation: int,
     expected_num_test: int,
     decode_rle: bool,
+    use_auth_token: bool,
 ):
     dataset = ds.load_dataset(
-        path=dataset_path, name=dataset_name, data_dir=data_dir, decode_rle=decode_rle
+        path=dataset_path,
+        name=dataset_name,
+        data_dir=data_dir if not use_auth_token else None,
+        decode_rle=decode_rle,
+        token=use_auth_token,
     )
 
     assert dataset["train"].num_rows == expected_num_train  # type: ignore

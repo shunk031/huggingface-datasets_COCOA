@@ -70,6 +70,10 @@ _URLS = {
     "BSDS": {
         "images": "http://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/BSR/BSR_bsds500.tgz",
     },
+    # The author of this loading script has uploaded the annotation files to the HuggingFace's private repository to facilitate testing.
+    # If you are using this loading script, please download the annotations from the appropriate channels, such as the Google Drive link provided by the COCOA's author.
+    # (To the author of COCOA, if there are any issues regarding this matter, please contact us. We will address it promptly.)
+    "annotations": "https://huggingface.co/datasets/shunk031/COCOA-annotation/resolve/main/annotations.tar.gz",
 }
 
 
@@ -334,7 +338,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         return ann_json
 
     @property
-    def manual_download_instructions(self) -> str:
+    def _manual_download_instructions(self) -> str:
         return (
             "To use COCOA, you need to download the annotations "
             "from the google drive in the official repositories "
@@ -489,10 +493,11 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
             ),
         ]
 
-    def _split_generators(self, dl_manager: ds.DownloadManager):
-        file_paths = dl_manager.download_and_extract(_URLS[self.config.name])
-        image_dirs = file_paths["images"]  # type: ignore
+    def _download_annotation_from_hf(self, dl_manager: ds.DownloadManager) -> str:
+        data_path = dl_manager.download_and_extract(_URLS["annotations"])
+        return data_path  # type: ignore
 
+    def _download_annotation_from_local(self, dl_manager: ds.DownloadManager) -> str:
         assert dl_manager.manual_dir is not None, dl_manager.manual_dir
         data_path = os.path.expanduser(dl_manager.manual_dir)
 
@@ -501,7 +506,7 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 f"{data_path} does not exists. Make sure you insert a manual dir "
                 'via `datasets.load_dataset("shunk031/COCOA", data_dir=...)` '
                 "that includes tar/untar files from the COCOA annotation tar.gz. "
-                f"Manual download instructions: {self.manual_download_instructions}"
+                f"Manual download instructions: {self._manual_download_instructions}"
             )
         else:
             data_path = (
@@ -509,16 +514,30 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
                 if not os.path.isdir(data_path)
                 else data_path
             )
+        return data_path  # type: ignore
+
+    def _split_generators(self, dl_manager: ds.DownloadManager):
+        urls = _URLS[self.config.name]
+        image_dirs = dl_manager.download_and_extract(urls["images"])  # type: ignore
+
+        if dl_manager.download_config.token:
+            data_path = self._download_annotation_from_hf(dl_manager)
+        else:
+            data_path = self._download_annotation_from_local(dl_manager)
 
         assert isinstance(data_path, str)
         ann_dir = os.path.join(data_path, "annotations")
 
         if self.config.name == "COCO":
-            return self._split_generators_coco(ann_dir=ann_dir, image_dirs=image_dirs)
-
+            return self._split_generators_coco(
+                ann_dir=ann_dir,
+                image_dirs=image_dirs,  # type: ignore
+            )
         elif self.config.name == "BSDS":
-            return self._split_generators_bsds(ann_dir=ann_dir, image_dir=image_dirs)
-
+            return self._split_generators_bsds(
+                ann_dir=ann_dir,
+                image_dir=image_dirs,  # type: ignore
+            )
         else:
             raise ValueError(f"Invalid name: {self.config.name}")
 

@@ -2,7 +2,9 @@ import json
 import logging
 import os
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
+from functools import partial
 from typing import Any, Dict, List, Literal, Optional, Tuple, Type, TypedDict, Union
 
 import datasets as ds
@@ -279,6 +281,7 @@ def _load_images_data(
     image_dicts: List[JsonDict],
     dataset_name: Literal["COCO", "BSDS"],
     tqdm_desc: str = "Load images",
+    disable_tqdm: bool = True,
 ) -> Dict[ImageId, ImageData]:
     ImageDataClass: Union[Type[CocoImageData], Type[BsDsImageData]]
 
@@ -290,7 +293,7 @@ def _load_images_data(
         raise ValueError(f"Invalid dataset name: {dataset_name}")
 
     images: Dict[ImageId, Union[CocoImageData, BsDsImageData]] = {}
-    for image_dict in tqdm(image_dicts, desc=tqdm_desc):
+    for image_dict in tqdm(image_dicts, desc=tqdm_desc, disable=disable_tqdm):
         image_data = ImageDataClass.from_dict(image_dict)
         images[image_data.image_id] = image_data
     return images  # type: ignore
@@ -300,16 +303,20 @@ def _load_cocoa_data(
     ann_dicts: List[JsonDict],
     images: Dict[ImageId, ImageData],
     decode_rle: bool,
+    num_processes: Optional[int] = None,
     tqdm_desc: str = "Load COCOA annotations",
+    disable_tqdm: bool = True,
 ) -> Dict[ImageId, List[CocoaAnnotationData]]:
     annotations = defaultdict(list)
     ann_dicts = sorted(ann_dicts, key=lambda d: d["image_id"])
 
-    for ann_dict in tqdm(ann_dicts, desc=tqdm_desc):
-        cocoa_data = CocoaAnnotationData.from_dict(
-            ann_dict, images=images, decode_rle=decode_rle
-        )
-        annotations[cocoa_data.image_id].append(cocoa_data)
+    func = partial(CocoaAnnotationData.from_dict, images=images, decode_rle=decode_rle)
+
+    with ProcessPoolExecutor(max_workers=num_processes) as executor:
+        with tqdm(total=len(ann_dicts), desc=tqdm_desc, disable=disable_tqdm) as pbar:
+            for cocoa_data in executor.map(func, ann_dicts):
+                annotations[cocoa_data.image_id].append(cocoa_data)
+                pbar.update()
 
     return annotations
 
@@ -317,6 +324,8 @@ def _load_cocoa_data(
 @dataclass
 class CocoaConfig(ds.BuilderConfig):
     decode_rle: bool = False
+    disable_tqdm: bool = True
+    num_processes: int = 4
 
 
 class CocoaDataset(ds.GeneratorBasedBuilder):
@@ -528,23 +537,27 @@ class CocoaDataset(ds.GeneratorBasedBuilder):
         base_image_dir: str,
         amodal_annotation_path: str,
     ):
-        if self.config.name == "COCO":
+        config: CocoaConfig = self.config  # type: ignore
+        if config.name == "COCO":
             image_dir = os.path.join(base_image_dir, f"{split}2014")
-        elif self.config.name == "BSDS":
+        elif config.name == "BSDS":
             image_dir = base_image_dir
         else:
-            raise ValueError(f"Invalid task: {self.config.name}")
+            raise ValueError(f"Invalid task: {config.name}")
 
         ann_json = self.load_amodal_annotation(amodal_annotation_path)
 
         images = _load_images_data(
             image_dicts=ann_json["images"],
-            dataset_name=self.config.name,
+            dataset_name=config.name,
+            disable_tqdm=config.disable_tqdm,
         )
         annotations = _load_cocoa_data(
             ann_dicts=ann_json["annotations"],
             images=images,
-            decode_rle=self.config.decode_rle,  # type: ignore
+            num_processes=config.num_processes,
+            decode_rle=config.decode_rle,
+            disable_tqdm=config.disable_tqdm,
         )
 
         for idx, image_id in enumerate(images.keys()):
